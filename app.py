@@ -18,8 +18,18 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-change-
 app.config['DEBUG'] = False
 
 # Load the trained model and scaler
-model = pickle.load(open('model.pkl', 'rb'))
-scaler = pickle.load(open('scaler.pkl', 'rb'))
+try:
+    model_path = os.path.join(os.path.dirname(__file__), 'model.pkl')
+    scaler_path = os.path.join(os.path.dirname(__file__), 'scaler.pkl')
+    
+    with open(model_path, 'rb') as model_file:
+        model = pickle.load(model_file)
+    with open(scaler_path, 'rb') as scaler_file:
+        scaler = pickle.load(scaler_file)
+except Exception as e:
+    logger.error(f"Error loading model files: {e}")
+    model = None
+    scaler = None
 
 @app.route('/')
 def home():
@@ -29,6 +39,9 @@ def home():
 @app.route('/predict', methods=['POST'])
 def predict():
     """Handles the prediction request."""
+    if model is None or scaler is None:
+        logger.error("Model or scaler not loaded properly")
+        return render_template('index.html', error="Service temporarily unavailable. Please try again later.")
     try:
         # Get the feature values from the form
         # The order must match the training data columns
@@ -96,6 +109,9 @@ def internal_error(error):
     return render_template('index.html', error="Internal server error. Please try again later."), 500
 
 if __name__ == "__main__":
+    # Get port from environment variable or default to 5000
+    port = int(os.environ.get('PORT', 5000))
     # Use environment variable for debug mode
     debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    app.run(host='0.0.0.0', port=port, debug=debug_mode)
     app.run(debug=debug_mode)
